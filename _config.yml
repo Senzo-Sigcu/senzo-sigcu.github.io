@@ -1,0 +1,34 @@
+# --- Site identity ---
+title: "Senzo Sigcu — Security Writeups"
+description: >-
+  Cybersecurity lab write-ups and methodology, spanning GRC / IT audit
+  and hands-on offensive security.
+author: "Senzo Sigcu"
+
+# url is your published address; baseurl is the sub-path it lives under.
+#   User/org site  (username.github.io)       -> leave both as ""
+#   Project site   (username.github.io/repo)  -> set baseurl: "/repo"
+url: "https://senzo-sigcu.github.io"
+baseurl: ""
+
+# --- Theme ---
+# minima ships with GitHub Pages, so no extra plugins are required.
+theme: minima
+minima:
+  skin: classic   # plain light theme, no dark-mode toggle
+
+# Order of the links in the top navigation (minima reads this list).
+header_pages:
+  - writeups/index.md
+  - methodology.md
+  - about.md
+
+# --- Build ---
+markdown: kramdown
+permalink: pretty      # pages render at /methodology/ etc. (folder-style URLs)
+
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - vendor
