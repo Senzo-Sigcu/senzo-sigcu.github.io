@@ -1,0 +1,37 @@
+<style>
+  /* Shared look across content pages, kept deliberately formal (report style).
+     Only typography, headings, header and footer are touched; body content is left alone. */
+  :root{
+    --ink:#0d2a3e; --accent:#0fbdd1; --accent-deep:#0a93a4;
+    --muted:#587289; --navy:#0d2a3e; --line:#e3edf3;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  body{ font-family:var(--sans); color:#223241; }
+
+  /* Headings: navy, matching the landing; h2 gets a quiet rule for report structure */
+  .page-content h1,.post-content h1,.post-title,
+  .page-content h2,.post-content h2,
+  .page-content h3,.post-content h3,
+  .page-content h4,.post-content h4{ color:var(--ink); }
+  .page-content h2,.post-content h2{
+    border-bottom:1px solid var(--line); padding-bottom:.22em; margin-top:1.7em;
+  }
+
+  /* Links in content: brand teal instead of default blue */
+  .page-content a,.post-content a{ color:var(--accent-deep); }
+  .page-content a:hover,.post-content a:hover{ color:var(--ink); }
+
+  /* Header: tie to the landing without changing its structure */
+  .site-header{ border-top:none; border-bottom:1px solid var(--line); }
+  .site-title,.site-title:visited{ color:var(--ink)!important; font-weight:700; font-family:var(--mono); }
+  .site-title:hover{ text-decoration:none; }
+  .site-nav .page-link{ color:var(--muted)!important; }
+  .site-nav .page-link:hover{ color:var(--accent-deep)!important; }
+
+  /* Footer: navy bar, matching the landing */
+  .site-footer{ background:var(--navy); border-top:none; color:#cfe1ec; }
+  .site-footer .footer-line{ margin:0; font-size:14px; }
+  .site-footer .footer-line .fname{ color:#fff; font-family:var(--mono); }
+  .site-footer a{ color:var(--accent); }
+</style>
