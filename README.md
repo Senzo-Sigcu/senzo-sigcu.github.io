@@ -2,7 +2,7 @@
 
 Source for my cybersecurity lab write-ups site: Jekyll + the minima theme, hosted on GitHub Pages.
 
-## Preview locally (optional)
+## Preview locally (optional) 
 ```
 bundle install
 bundle exec jekyll serve
