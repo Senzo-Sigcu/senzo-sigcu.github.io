@@ -3,29 +3,29 @@ layout: page
 title: Methodology
 ---
 
-This page describes how I actually work a target, from first contact to final report. It's written for someone evaluating my process (a hiring manager, an audit lead, or future me), so it favours reasoning over tool lists. Edit it until it sounds like you, not like a template.
+This page documents the methodology applied to every assessment on this site, from initial reconnaissance through to the final report. It records process and reasoning rather than a list of tools, so that a reader can evaluate how an engagement is approached and why each decision is made.
 
 ## Enumeration strategy
 
-My first principle is that **enumeration is the engagement**. Exploitation is usually a short step once the groundwork is right, so I spend most of my effort here and treat every service as a question to be answered, not a port to be ticked off.
+Enumeration is treated as the core of the engagement. Exploitation is generally a short step once reconnaissance is thorough, so the majority of effort is spent at this stage, and each service is assessed on its own terms rather than recorded simply as an open port.
 
-I work outside-in, in layers, and I don't skip ahead:
+Enumeration proceeds outside-in, in defined layers, without skipping stages:
 
-1. **Host discovery**: confirm what's actually live before touching ports, so I'm not scanning ghosts. On a local segment that's an ARP sweep; across a routed network, a light ping/TCP sweep.
-2. **Port and service sweep**: a full port scan with Nmap first (I'd rather be slow and complete than fast and blind), then version detection on everything that answered, and a Greenbone/GVM vulnerability scan to turn versions into leads. The version string is the hinge: it's what turns "there's a web server" into "there's a specific build with a known weakness."
-3. **Service-by-service deep dive**: I take each open service on its own terms. A web app gets content discovery and input review in Burp Suite; a file service gets a share and permission check; a database gets an auth check. One big scan is a starting point, never the finding.
-4. **The human and configuration layer**: default or blank credentials, exposed admin interfaces, verbose banners, and anything a real operator left on by accident. This layer is where the easy, high-impact findings usually hide.
+1. **Host discovery.** Live hosts are confirmed before any port scanning, to avoid probing addresses that are not in use. On a local segment this is an ARP sweep; across a routed network, a light ping or TCP sweep.
+2. **Port and service sweep.** A full Nmap port scan is run first, with completeness prioritised over speed, followed by version detection on every responding service and a Greenbone/GVM vulnerability scan to convert versions into actionable leads. The service version is the decisive detail, as it distinguishes a generic service from a specific build with known weaknesses.
+3. **Service-by-service review.** Each open service is examined individually. A web application receives content discovery and input review in Burp Suite; a file service is checked for share and permission weaknesses; a database is tested for weak authentication. A broad scan is a starting point, not a conclusion.
+4. **Human and configuration layer.** Default or blank credentials, exposed administrative interfaces, verbose banners, and other operator misconfigurations are reviewed. This layer frequently yields the highest-impact findings for the least effort.
 
-I keep a running notes file per target with one line per service: what it is, its version, and why it's worth (or not worth) a closer look. I don't move to exploitation until I can write that sentence for every open port. If I can't explain why I'm attacking something, I haven't enumerated it properly yet.
+A per-target record is maintained with a single line for each service: its identity, its version, and the reason it does or does not warrant further investigation. Exploitation does not begin until that line can be written for every open port. A service that cannot be justified as a target has not yet been fully enumerated.
 
 ## Triage and prioritisation
 
-Not every finding deserves equal attention, and a flat list of "vulnerabilities" helps no one decide what to do on Monday. I rate each finding on two axes and let the combination set the priority.
+Findings are not treated as equally important, as an undifferentiated list of vulnerabilities provides no basis for deciding what to remediate first. Each finding is rated on two axes, and the combination sets its priority.
 
-- **Likelihood**: how realistically can this be exploited? Network-reachable, unauthenticated, and backed by a public exploit is **High**. Needing local access, valid credentials, a specific configuration, or a chain of conditions pushes it **lower**.
-- **Impact**: what does a successful exploit actually get the attacker? Root, domain admin, or access to sensitive data is **High**. A limited user shell, information disclosure, or denial of a single service is **lower**.
+- **Likelihood:** how realistically the weakness can be exploited. A network-reachable, unauthenticated weakness supported by a public exploit is rated High. A weakness requiring local access, valid credentials, a specific configuration, or a chain of conditions is rated lower.
+- **Impact:** what successful exploitation grants. Root or administrative access, or access to sensitive data, is rated High. A limited user shell, information disclosure, or denial of a single service is rated lower.
 
-**Risk rating = likelihood × impact**, mapped onto a simple matrix:
+**Risk rating = likelihood × impact**, mapped onto the following matrix:
 
 | | Impact: Low | Impact: Medium | Impact: High |
 |-----------------|-------------|----------------|--------------|
@@ -33,16 +33,16 @@ Not every finding deserves equal attention, and a flat list of "vulnerabilities"
 | **Likelihood: Medium** | Low | Medium | High |
 | **Likelihood: Low** | Low | Low | Medium |
 
-The rating is only half the job; the **justification** is the other half, and it's the part that shows judgement. For every finding I write one line explaining *why* I placed it where I did: "unauthenticated and network-reachable with a public exploit (High likelihood), yields root (High impact), therefore Critical." A rating without that sentence is just a colour; the sentence is what an auditor or a developer can argue with, trust, or act on.
+The rating is accompanied by a justification, which carries equal weight. Each finding includes one line stating why it was placed where it was, for example: "unauthenticated and network-reachable with a public exploit (High likelihood), yields root access (High impact), therefore Critical." The justification is what allows an auditor or developer to assess, challenge, or act on the rating.
 
-I report findings in rating order, highest first, because the reader's attention is the scarcest resource in the whole engagement and it should land on what matters most.
+Findings are presented in rating order, highest first, so that the most significant issues are addressed before less important ones.
 
 ## Reporting standard
 
-A finding nobody can act on is wasted work. Every write-up on this site follows the same structure so a reader can move cleanly from **what** to **so what** to **now what**:
+A finding that cannot be acted upon has limited value. Every write-up follows a consistent structure, moving from the finding, to its significance, to the required action:
 
-- **Executive summary first.** One paragraph a non-technical reader can act on (the overall risk and the single most important fix) before any tooling appears.
-- **Each finding carries its own evidence.** The exact command and its output (or a screenshot), the risk rating, the one-line justification, and a concrete recommendation. "Patch it" is not a recommendation; "disable service X / rotate credential Y / add control Z" is.
-- **A defender's view is mandatory, not optional.** Every write-up says what evidence the attack left and which log or alert would have caught it. Being able to describe the blue-team side is what separates a tester from someone who just runs tools.
-- **Reproducibility.** Enough detail that someone else could repeat the path. If a result can't be reproduced, I treat it as unconfirmed and say so rather than overstating it.
-- **No finding without a recommendation, and no recommendation without a reason.** The whole document should read as a chain of reasoning, not a dump of output.
+- **Executive summary first.** A single paragraph suitable for a non-technical reader, stating the overall risk and the most important remediation, before any technical detail is presented.
+- **Evidence with each finding.** The exact command and its output or a screenshot, the risk rating, the one-line justification, and a specific recommendation. A recommendation specifies an action, such as disabling a named service, rotating a credential, or adding a control, rather than a generic instruction to patch.
+- **A defender's view in every write-up.** Each finding states what evidence the activity left behind and which log entry or alert would detect it. Documenting the defensive perspective is a core part of the methodology, not an optional addition.
+- **Reproducibility.** Sufficient detail is provided for the path to be repeated. A result that cannot be reproduced is recorded as unconfirmed rather than overstated.
+- **A recommendation for every finding, and a reason for every recommendation.** The report is intended to read as a continuous line of reasoning rather than a collection of output.
