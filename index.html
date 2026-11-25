@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Senzo Sigcu — Security Writeups</title>
+<style>
+  :root{
+    --bg:#ffffff; --soft:#eef5f9; --ink:#0d2a3e; --muted:#587289;
+    --accent:#0fbdd1; --accent-deep:#0a93a4; --accent-ink:#063038;
+    --navy:#0d2a3e; --border:#e3edf3; --chip:#e8f8fb;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 24px}
+
+  header{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.88);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+  .bar{display:flex;align-items:center;justify-content:space-between;height:62px}
+  .brand{font-family:var(--mono);font-weight:700;color:var(--ink);letter-spacing:.02em}
+  .brand .dot{color:var(--accent)}
+  nav a{color:var(--muted);font-size:14px;font-weight:500;margin-left:24px;transition:color .15s}
+  nav a:hover{color:var(--accent-deep)}
+
+  .hero{position:relative;overflow:hidden;padding:88px 0 60px}
+  .hero::before{content:"";position:absolute;top:-180px;right:-160px;width:520px;height:520px;
+    border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(15,189,209,.28),rgba(15,189,209,.04) 60%,transparent 72%);
+    pointer-events:none}
+  .hero::after{content:"";position:absolute;top:40px;right:60px;width:260px;height:260px;border-radius:50%;
+    border:2px solid rgba(15,189,209,.35);pointer-events:none}
+  .hero .inner{position:relative;max-width:700px}
+  .tag{font-family:var(--mono);font-size:13px;color:var(--accent-deep);letter-spacing:.09em;
+    text-transform:uppercase;font-weight:600;margin-bottom:16px}
+  .hero h1{font-size:58px;line-height:1.02;margin:0 0 18px;letter-spacing:-.02em;color:var(--ink)}
+  .hero .lead{font-size:21px;color:var(--ink);max-width:640px;margin:0 0 14px;font-weight:500}
+  .hero .sub{font-size:16px;color:var(--muted);max-width:620px;margin:0 0 32px}
+  .cta{display:flex;gap:14px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:10px;
+    font-weight:600;font-size:15px;transition:.15s;border:1.5px solid transparent}
+  .btn.primary{background:var(--accent);color:#04232a;box-shadow:0 6px 18px rgba(15,189,209,.3)}
+  .btn.primary:hover{background:var(--accent-deep);color:#fff;transform:translateY(-1px)}
+  .btn.ghost{color:var(--ink);border-color:var(--border);background:#fff}
+  .btn.ghost:hover{border-color:var(--accent);color:var(--accent-deep)}
+
+  section{padding:40px 0}
+  .alt{background:var(--soft);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .h2{font-family:var(--mono);font-size:13px;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--accent-deep);font-weight:600;margin:0 0 20px;display:flex;align-items:center;gap:10px}
+  .h2::before{content:"";width:22px;height:2px;background:var(--accent)}
+
+  .prose{max-width:760px}
+  .prose p{font-size:17px;color:var(--ink);margin:0 0 18px}
+  .prose p:last-child{margin-bottom:0;color:#35546b}
+
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:30px}
+  .lcard{display:block;background:#fff;border:1px solid var(--border);border-left:3px solid var(--accent);
+    border-radius:12px;padding:20px;transition:.15s;box-shadow:0 1px 2px rgba(13,42,62,.04)}
+  .lcard:hover{box-shadow:0 10px 24px rgba(13,42,62,.10);transform:translateY(-2px)}
+  .lcard h3{margin:0 0 6px;font-size:16px;color:var(--accent-deep);font-family:var(--mono)}
+  .lcard p{margin:0;color:var(--muted);font-size:14px}
+
+  footer{background:var(--navy);color:#cfe1ec;margin-top:0;padding:30px 0 46px}
+  footer .name{color:#fff;font-family:var(--mono)}
+  footer p{margin:0;font-size:14px}
+
+  @media(max-width:680px){
+    .hero{padding:56px 0 40px}
+    .hero h1{font-size:40px}
+    .hero::after{display:none}
+    .grid3{grid-template-columns:1fr}
+    nav a{margin-left:16px;font-size:13px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap bar">
+    <div class="brand">senzo<span class="dot">.</span>sec</div>
+    <nav>
+      <a href="/writeups/">Write-ups</a>
+      <a href="/methodology/">Methodology</a>
+      <a href="/about/">About</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <div class="inner">
+        <div class="tag">SOC &amp; Offensive Security</div>
+        <h1>Senzo Sigcu</h1>
+        <p class="lead">I run attacks end to end in the lab, then turn around and find my own footprints in the logs.</p>
+        <p class="sub">A cybersecurity practitioner working across the full attack lifecycle and the defender's view of it. This site documents what I test, the evidence each attack leaves behind, and the control that would have stopped it.</p>
+        <div class="cta">
+          <a class="btn primary" href="/writeups/">View the write-ups →</a>
+          <a class="btn ghost" href="/about/">About me</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="alt">
+    <div class="wrap">
+      <div class="h2">Overview</div>
+      <div class="prose">
+        <p>I'm Senzo Sigcu, a Postgraduate Diploma candidate in Cybersecurity (NQF 8) at Nelson Mandela University, building on a foundation in software development. My work runs along two tracks that usually stay apart: security governance and risk (NIST CSF, ISO 27001, COBIT) and hands-on offensive security (ethical hacking and application security). This site is where I document what I test in the lab, what evidence the attack leaves behind, and how I'd advise fixing it.</p>
+        <p>Every write-up follows the same spine: enumerate, identify, exploit, then switch to the defender's chair: what a blue team would see, and which control would have stopped it. The point isn't to collect trophies; it's to show I can move between the attacker's keyboard and the audit checklist without dropping either.</p>
+      </div>
+      <div class="grid3">
+        <a class="lcard" href="/writeups/">
+          <h3>Write-ups →</h3>
+          <p>Lab walkthroughs, tagged by platform and skill.</p>
+        </a>
+        <a class="lcard" href="/methodology/">
+          <h3>Methodology →</h3>
+          <p>How I enumerate, triage findings, and report.</p>
+        </a>
+        <a class="lcard" href="/about/">
+          <h3>About →</h3>
+          <p>Who I am and where I'm headed.</p>
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><span class="name">Senzo Sigcu</span> · Postgraduate Diploma in Cybersecurity (NQF 8), Nelson Mandela University</p>
+  </div>
+</footer>
+</body>
+</html>
