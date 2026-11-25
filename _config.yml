@@ -27,6 +27,11 @@ header_pages:
 markdown: kramdown
 permalink: pretty      # pages render at /methodology/ etc. (folder-style URLs)
 
+# --- SEO: sitemap for Google, meta tags on content pages ---
+plugins:
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
 exclude:
   - README.md
   - Gemfile
