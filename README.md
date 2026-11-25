@@ -1,4 +1,4 @@
-# Senzo Sigcu — Security Writeups
+# Senzo Sigcu: Security Writeups
 
 Source for my cybersecurity lab write-ups site: Jekyll + the minima theme, hosted on GitHub Pages.
 
@@ -19,5 +19,5 @@ set `baseurl: "/repo"` in `_config.yml`; a **user/org** repo (`username.github.i
 1. Copy `writeups/metasploitable-2/` to `writeups/<your-target>/`.
 2. Edit the front matter (`title`, `platform`, `skills`, `date`) and fill in each section.
 3. Put screenshots in that write-up's `images/` folder.
-It appears on the Write-ups page automatically — the listing picks up any page with
+It appears on the Write-ups page automatically. The listing picks up any page with
 `writeup: true` in its front matter, newest first.
