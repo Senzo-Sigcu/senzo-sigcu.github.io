@@ -3,7 +3,7 @@ layout: page
 title: "Phishing Analysis: Authenticated, Misaligned, and Still Hostile"
 platform: Email security
 skills: [Phishing Analysis, Email Security, Detection, Reporting]
-date: 2026-11-14
+date: 2026-11-10
 writeup: true
 ---
 
