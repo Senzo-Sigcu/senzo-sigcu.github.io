@@ -16,5 +16,5 @@ Each write-up documents real lab work: the commands I ran, the output they produ
 All from Nelson Mandela University:
 
 - Postgraduate Diploma in Cybersecurity (NQF 8), 2026
-- Advanced Diploma in IT, 2025
-- Diploma in IT: Software Development (NQF 6), 2024
+- Advanced Diploma in Information Technology (NQF 7), 2025
+- Diploma in Information Technology: Software Development (NQF 6), 2024
